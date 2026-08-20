@@ -350,6 +350,10 @@ OnCaptureKey(*) {
     dev := DeviceCache[row]
     CapturedCode := 0
     Capturing := true
+    ; Move focus off the button - we only observe the key while capturing
+    ; (block=false), so it also reaches Windows normally, and Space on a
+    ; focused button re-clicks it, restarting this whole capture in a loop.
+    lvDevices.Focus()
     lblCapture.Text := "Press the key you want to block now (on that keyboard)..."
     AHI.SubscribeKeyboard(dev.id, false, CaptureCallback.Bind(dev.id))
     SetTimer(() => StopCapture(dev.id), -8000)
@@ -506,6 +510,7 @@ OnCaptureSourceKey(*) {
     dev := DeviceCache[row]
     CapturedCode := 0
     Capturing := true
+    lvDevices.Focus()
     lblCaptureSource.Text := "Press the faulty key now (on that keyboard)..."
     AHI.SubscribeKeyboard(dev.id, false, SourceCaptureCallback.Bind(dev.id))
     SetTimer(() => StopSourceCapture(dev.id), -8000)
@@ -536,7 +541,7 @@ StopSourceCapture(id) {
 ; quirk where Space doesn't reliably register as an end-key. Subscribes to
 ; every currently-listed device at once so it works from any keyboard.
 OnCaptureTargetKey(*) {
-    global lblCaptureTarget, CapturedTargetKeyName, CapturingTarget, DeviceCache, AHI
+    global lblCaptureTarget, CapturedTargetKeyName, CapturingTarget, DeviceCache, AHI, lvDevices
     if (!TrySetupAHI()) {
         MsgBox("Driver isn't installed/active yet.`n`nDetail: " LastAHIError, "Not ready", "Iconx")
         return
@@ -547,6 +552,7 @@ OnCaptureTargetKey(*) {
     }
     CapturedTargetKeyName := ""
     CapturingTarget := true
+    lvDevices.Focus()
     lblCaptureTarget.Text := "Press the key you want it to send instead (any keyboard)..."
     for row, dev in DeviceCache
         AHI.SubscribeKeyboard(dev.id, false, TargetCaptureCallback)
