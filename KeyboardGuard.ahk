@@ -101,13 +101,27 @@ if (A_Args.Length > 0 && A_Args[1] = "/auto") {
     return
 }
 
+; A Windows Service runs in Session 0, which has no access to the user's
+; desktop - Send() calls from there silently go nowhere. Blocking still
+; works fine there (it's the driver refusing to pass the key through, not
+; an injection), but remapping fundamentally cannot: it needs to inject a
+; replacement keystroke into a real desktop session. So the Service (Session
+; 0) only ever does blocking; remapping only runs from the interactive
+; "run after login" scheduled task, which executes in the user's own
+; session and has real desktop access.
+IsInteractiveSession() {
+    DllCall("kernel32\ProcessIdToSessionId", "uint", DllCall("GetCurrentProcessId", "uint"), "uint*", &sessionId := 0)
+    return sessionId != 0
+}
+
 TryStartInAutoMode() {
     global AHI
     if (AHI != "")
         return
     if (TrySetupAHI()) {
         StartBlocking()
-        StartRemapping()
+        if IsInteractiveSession()
+            StartRemapping()
         SetTimer(TryStartInAutoMode, 0)
     }
 }
@@ -198,7 +212,7 @@ chkAutostart.OnEvent("Click", OnAutostartToggle)
 
 svcBoxY := belowTabY + 20
 MainGui.Add("GroupBox", "x15 y" svcBoxY " w560 h90", "Step 3 - Protect The Lock/Login Screen Too (Windows Service)")
-lblServiceInfo := MainGui.Add("Text", "x30 y" (svcBoxY + 20) " w530", "Runs from boot, before you log in, so blocked/remapped keys work even on the password screen. Needs Step 1 driver + at least one rule above.")
+lblServiceInfo := MainGui.Add("Text", "x30 y" (svcBoxY + 20) " w530", "Runs from boot, before you log in - protects the password screen for BLOCK rules. Remap rules need Windows' desktop, so they only apply after login (via 'Run automatically after I log in' above).")
 lblServiceStatus := MainGui.Add("Text", "x30 y" (svcBoxY + 42) " w530", "Service status: checking...")
 btnInstallService := MainGui.Add("Button", "x30 y" (svcBoxY + 58) " w170", "Install As Service")
 btnInstallService.OnEvent("Click", OnInstallService)
