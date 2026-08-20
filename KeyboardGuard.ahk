@@ -531,20 +531,46 @@ StopSourceCapture(id) {
     }
 }
 
+; Uses the same device-subscription mechanism as source-key capture (proven
+; to correctly catch Space etc.) rather than InputHook, which has a known
+; quirk where Space doesn't reliably register as an end-key. Subscribes to
+; every currently-listed device at once so it works from any keyboard.
 OnCaptureTargetKey(*) {
-    global lblCaptureTarget, CapturedTargetKeyName, CapturingTarget
+    global lblCaptureTarget, CapturedTargetKeyName, CapturingTarget, DeviceCache, AHI
+    if (!TrySetupAHI()) {
+        MsgBox("Driver isn't installed/active yet.`n`nDetail: " LastAHIError, "Not ready", "Iconx")
+        return
+    }
+    if (DeviceCache.Count = 0) {
+        MsgBox("Click 'Refresh Keyboard List' first.", "No devices")
+        return
+    }
     CapturedTargetKeyName := ""
     CapturingTarget := true
-    lblCaptureTarget.Text := "Press the key/combo you want it to send instead..."
-    ih := InputHook("L0 T8")
-    ih.KeyOpt("{All}", "E")
-    ih.Start()
-    ih.Wait()
+    lblCaptureTarget.Text := "Press the key you want it to send instead (any keyboard)..."
+    for row, dev in DeviceCache
+        AHI.SubscribeKeyboard(dev.id, false, TargetCaptureCallback)
+    SetTimer(StopTargetCapture, -8000)
+}
+
+TargetCaptureCallback(code, state) {
+    global CapturingTarget, CapturedTargetKeyName, lblCaptureTarget, AHI, DeviceCache
+    if (!CapturingTarget || state != 1)
+        return
+    keyName := GetKeyName(Format("SC{:x}", code))
+    CapturedTargetKeyName := keyName != "" ? keyName : "?"
     CapturingTarget := false
-    if (ih.EndReason = "EndKey" && ih.EndKey != "") {
-        CapturedTargetKeyName := ih.EndKey
-        lblCaptureTarget.Text := "Will send: " CapturedTargetKeyName
-    } else {
+    lblCaptureTarget.Text := "Will send: " CapturedTargetKeyName
+    for row, dev in DeviceCache
+        try AHI.UnsubscribeKeyboard(dev.id)
+}
+
+StopTargetCapture() {
+    global CapturingTarget, AHI, DeviceCache, lblCaptureTarget
+    if (CapturingTarget) {
+        CapturingTarget := false
+        for row, dev in DeviceCache
+            try AHI.UnsubscribeKeyboard(dev.id)
         lblCaptureTarget.Text := "No key detected within 8 seconds. Try again."
     }
 }
