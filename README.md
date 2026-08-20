@@ -41,8 +41,9 @@ Requires [AutoHotkey v2](https://www.autohotkey.com/) (specifically its compiler
    - `AutoHotInterception.dll` and `Lib\AutoHotInterception.ahk`, `Lib\CLR.ahk`, `Lib\x64\interception.dll`, `Lib\x86\interception.dll` (from [AutoHotInterception](https://github.com/evilC/AutoHotInterception))
    - `install-interception.exe` (from [Interception](https://github.com/oblitum/Interception))
    - `nssm.exe` (from [NSSM](https://nssm.cc/))
-2. Compile: `Ahk2Exe.exe /in KeyboardGuard.ahk /out KeyboardGuard.exe /base AutoHotkey64.exe`
-3. Build the installer: `ISCC.exe KeyboardGuard.iss`
+2. **Required patch to `Lib\AutoHotInterception.ahk`**: its `__New()` unconditionally re-runs `FileInstall` on `interception.dll`/`AutoHotInterception.dll` on every single construction, with no "already exists" check. This app can have two processes running at once (the interactive GUI and the background Windows Service), and if one already has these files loaded/locked, the other's construction fails outright with a generic "Failed" error. Guard those three `FileInstall` calls (for `Lib\AutoHotInterception.dll`, `Lib\x86\interception.dll`, `Lib\x64\interception.dll`) with `if !FileExist(...)` the same way this project's own extraction code does, before compiling.
+3. Compile: `Ahk2Exe.exe /in KeyboardGuard.ahk /out KeyboardGuard.exe /base AutoHotkey64.exe`
+4. Build the installer: `ISCC.exe KeyboardGuard.iss`
 
 ## Third-party components
 
