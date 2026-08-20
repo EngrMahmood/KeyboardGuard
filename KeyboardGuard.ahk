@@ -298,7 +298,12 @@ TrySetupAHI() {
                 return true
             } catch as e {
                 AHI := ""
-                LastAHIError := "AutoHotInterception() init failed: " e.Message
+                detail := "Message=[" e.Message "]"
+                try detail .= " What=[" e.What "]"
+                try detail .= " Extra=[" e.Extra "]"
+                try detail .= " Number=[" Format("0x{:X}", e.Number) "]"
+                try detail .= " File=[" e.File "] Line=[" e.Line "]"
+                LastAHIError := "AutoHotInterception() init failed. " detail
                 return false
             }
         }
