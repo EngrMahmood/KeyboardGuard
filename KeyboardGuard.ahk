@@ -143,45 +143,46 @@ tab := MainGui.Add("Tab3", "x15 y" tabY " w560 h" tabH, ["Block a Key", "Remap a
 
 ; ---- Tab 1: Block a Key ----
 tab.UseTab(1)
-btnCapture := MainGui.Add("Button", "xs+15 ys+15 w170", "Capture Key From Selected")
+contentTop := tabY + 40
+btnCapture := MainGui.Add("Button", "x30 y" contentTop " w170 h30", "Capture Key From Selected")
 btnCapture.OnEvent("Click", OnCaptureKey)
-lblCapture := MainGui.Add("Text", "x+10 yp+5 w350", "Select a device above, click Capture, then press the key.")
+lblCapture := MainGui.Add("Text", "x210 y" (contentTop + 6) " w350", "Select a device above, click Capture, then press the key.")
 
-btnAddRule := MainGui.Add("Button", "xs+15 y+15 w170", "Add As Blocked Rule")
+btnAddRule := MainGui.Add("Button", "x30 y" (contentTop + 40) " w170 h30", "Add As Blocked Rule")
 btnAddRule.OnEvent("Click", OnAddRule)
 
-lvRules := MainGui.Add("ListView", "xs+15 y+15 w530 h110", ["Device", "Key Blocked"])
+lvRules := MainGui.Add("ListView", "x30 y" (contentTop + 80) " w530 h100", ["Device", "Key Blocked"])
 lvRules.ModifyCol(1, 430)
 lvRules.ModifyCol(2, 100)
-btnRemoveRule := MainGui.Add("Button", "xs+15 y+10 w170", "Remove Selected Rule")
+btnRemoveRule := MainGui.Add("Button", "x30 y" (contentTop + 190) " w170 h30", "Remove Selected Rule")
 btnRemoveRule.OnEvent("Click", OnRemoveRule)
-btnStart := MainGui.Add("Button", "x+10 w170", "Start Blocking")
+btnStart := MainGui.Add("Button", "x210 y" (contentTop + 190) " w170 h30", "Start Blocking")
 btnStart.OnEvent("Click", OnStartBlocking)
-btnStop := MainGui.Add("Button", "x+10 w170", "Stop Blocking")
+btnStop := MainGui.Add("Button", "x390 y" (contentTop + 190) " w170 h30", "Stop Blocking")
 btnStop.OnEvent("Click", OnStopBlocking)
 
 ; ---- Tab 2: Remap a Key ----
 tab.UseTab(2)
-btnCaptureSource := MainGui.Add("Button", "xs+15 ys+15 w170", "Capture Source Key")
+btnCaptureSource := MainGui.Add("Button", "x30 y" contentTop " w170 h30", "Capture Source Key")
 btnCaptureSource.OnEvent("Click", OnCaptureSourceKey)
-lblCaptureSource := MainGui.Add("Text", "x+10 yp+5 w350", "Select a device above, click here, then press the faulty key.")
+lblCaptureSource := MainGui.Add("Text", "x210 y" (contentTop + 6) " w350", "Select a device above, click here, then press the faulty key.")
 
-btnCaptureTarget := MainGui.Add("Button", "xs+15 y+12 w170", "Capture Key To Send Instead")
+btnCaptureTarget := MainGui.Add("Button", "x30 y" (contentTop + 40) " w170 h30", "Capture Key To Send Instead")
 btnCaptureTarget.OnEvent("Click", OnCaptureTargetKey)
-lblCaptureTarget := MainGui.Add("Text", "x+10 yp+5 w350", "Click here, then press any key/key combo - it can be on any keyboard.")
+lblCaptureTarget := MainGui.Add("Text", "x210 y" (contentTop + 46) " w350", "Click here, then press any key/key combo - it can be on any keyboard.")
 
-btnAddRemapRule := MainGui.Add("Button", "xs+15 y+15 w170", "Add As Remap Rule")
+btnAddRemapRule := MainGui.Add("Button", "x30 y" (contentTop + 80) " w170 h30", "Add As Remap Rule")
 btnAddRemapRule.OnEvent("Click", OnAddRemapRule)
 
-lvRemapRules := MainGui.Add("ListView", "xs+15 y+15 w530 h80", ["Device", "From", "To"])
+lvRemapRules := MainGui.Add("ListView", "x30 y" (contentTop + 120) " w530 h80", ["Device", "From", "To"])
 lvRemapRules.ModifyCol(1, 330)
 lvRemapRules.ModifyCol(2, 100)
 lvRemapRules.ModifyCol(3, 100)
-btnRemoveRemapRule := MainGui.Add("Button", "xs+15 y+10 w170", "Remove Selected Rule")
+btnRemoveRemapRule := MainGui.Add("Button", "x30 y" (contentTop + 210) " w170 h30", "Remove Selected Rule")
 btnRemoveRemapRule.OnEvent("Click", OnRemoveRemapRule)
-btnStartRemap := MainGui.Add("Button", "x+10 w170", "Start Remapping")
+btnStartRemap := MainGui.Add("Button", "x210 y" (contentTop + 210) " w170 h30", "Start Remapping")
 btnStartRemap.OnEvent("Click", OnStartRemapping)
-btnStopRemap := MainGui.Add("Button", "x+10 w170", "Stop Remapping")
+btnStopRemap := MainGui.Add("Button", "x390 y" (contentTop + 210) " w170 h30", "Stop Remapping")
 btnStopRemap.OnEvent("Click", OnStopRemapping)
 
 tab.UseTab()
