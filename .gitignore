@@ -1,0 +1,7 @@
+Lib/
+install-interception.exe
+nssm.exe
+*.zip
+build/
+Output/
+*.log
