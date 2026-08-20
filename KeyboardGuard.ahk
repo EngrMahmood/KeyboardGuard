@@ -77,6 +77,7 @@ CapturedCode := 0
 Capturing := false
 CapturedTargetKeyName := ""
 CapturingTarget := false
+LastAHIError := ""
 
 ; ---------------- Autostart / service silent mode ----------------
 if (A_Args.Length > 0 && A_Args[1] = "/auto") {
@@ -106,25 +107,27 @@ MainGui := Gui("", "KeyboardGuard")
 MainGui.SetFont("s10")
 MainGui.OnEvent("Close", (*) => ExitApp())
 
-MainGui.Add("GroupBox", "w560 h110", "Step 1 - Interception Driver")
-lblDriver := MainGui.Add("Text", "xp+15 yp+25 w530", "Checking driver status...")
-btnInstallDriver := MainGui.Add("Button", "xp y+10 w170", "Install Driver")
+MainGui.Add("GroupBox", "x15 y15 w560 h110", "Step 1 - Interception Driver")
+lblDriver := MainGui.Add("Text", "x30 y40 w530", "Checking driver status...")
+btnInstallDriver := MainGui.Add("Button", "x30 y75 w170", "Install Driver")
 btnInstallDriver.OnEvent("Click", OnInstallDriver)
-btnUninstallDriver := MainGui.Add("Button", "x+10 w170", "Uninstall Driver")
+btnUninstallDriver := MainGui.Add("Button", "x210 y75 w170", "Uninstall Driver")
 btnUninstallDriver.OnEvent("Click", OnUninstallDriver)
-btnReboot := MainGui.Add("Button", "x+10 w170", "Reboot Now")
+btnReboot := MainGui.Add("Button", "x390 y75 w170", "Reboot Now")
 btnReboot.OnEvent("Click", OnReboot)
 
-MainGui.Add("GroupBox", "x15 y+20 w560 h115", "Step 2 - Choose Keyboard")
-btnRefresh := MainGui.Add("Button", "xp+15 yp+25 w170", "Refresh Keyboard List")
+MainGui.Add("GroupBox", "x15 y135 w560 h115", "Step 2 - Choose Keyboard")
+btnRefresh := MainGui.Add("Button", "x30 y160 w170", "Refresh Keyboard List")
 btnRefresh.OnEvent("Click", OnRefreshKeyboards)
-lvDevices := MainGui.Add("ListView", "x+10 yp-3 w370 h90", ["ID", "VID", "PID", "Handle"])
+lvDevices := MainGui.Add("ListView", "x210 y157 w350 h85", ["ID", "VID", "PID", "Handle"])
 lvDevices.ModifyCol(1, 30)
 lvDevices.ModifyCol(2, 70)
 lvDevices.ModifyCol(3, 70)
-lvDevices.ModifyCol(4, 180)
+lvDevices.ModifyCol(4, 165)
 
-tab := MainGui.Add("Tab3", "x15 y+15 w560 h300", ["Block a Key", "Remap a Key"])
+tabY := 260
+tabH := 330
+tab := MainGui.Add("Tab3", "x15 y" tabY " w560 h" tabH, ["Block a Key", "Remap a Key"])
 
 ; ---- Tab 1: Block a Key ----
 tab.UseTab(1)
@@ -171,18 +174,27 @@ btnStopRemap.OnEvent("Click", OnStopRemapping)
 
 tab.UseTab()
 
-chkAutostart := MainGui.Add("Checkbox", "x15 y+15", "Run automatically after I log in (background, tray icon)")
+; Everything below is positioned using absolute Y derived from the tab's own
+; bottom edge (tabY + tabH), NOT relative "y+N" flow - relative flow after a
+; Tab3 control measures from wherever the last tab-page control happened to
+; land, which can be well inside the tab's visible rectangle and overlap it.
+belowTabY := tabY + tabH + 15
+
+chkAutostart := MainGui.Add("Checkbox", "x15 y" belowTabY, "Run automatically after I log in (background, tray icon)")
 chkAutostart.OnEvent("Click", OnAutostartToggle)
 
-MainGui.Add("GroupBox", "x15 y+15 w560 h95", "Step 3 - Protect The Lock/Login Screen Too (Windows Service)")
-lblServiceInfo := MainGui.Add("Text", "xp+15 yp+22 w530", "Runs from boot, before you log in, so blocked/remapped keys work even on the password screen. Needs Step 1 driver + at least one rule above.")
-lblServiceStatus := MainGui.Add("Text", "xp yp+22 w530", "Service status: checking...")
-btnInstallService := MainGui.Add("Button", "xp y+8 w170", "Install As Service")
+svcBoxY := belowTabY + 25
+MainGui.Add("GroupBox", "x15 y" svcBoxY " w560 h95", "Step 3 - Protect The Lock/Login Screen Too (Windows Service)")
+lblServiceInfo := MainGui.Add("Text", "x30 y" (svcBoxY + 22) " w530", "Runs from boot, before you log in, so blocked/remapped keys work even on the password screen. Needs Step 1 driver + at least one rule above.")
+lblServiceStatus := MainGui.Add("Text", "x30 y" (svcBoxY + 44) " w530", "Service status: checking...")
+btnInstallService := MainGui.Add("Button", "x30 y" (svcBoxY + 62) " w170", "Install As Service")
 btnInstallService.OnEvent("Click", OnInstallService)
-btnUninstallService := MainGui.Add("Button", "x+10 w170", "Uninstall Service")
+btnUninstallService := MainGui.Add("Button", "x210 y" (svcBoxY + 62) " w170", "Uninstall Service")
 btnUninstallService.OnEvent("Click", OnUninstallService)
 
-lblStatus := MainGui.Add("Text", "x15 y+15 w560", "Ready.")
+statusY := svcBoxY + 110
+lblStatus := MainGui.Add("Text", "x15 y" statusY " w560", "Ready.")
+windowH := statusY + 30
 
 LoadRules()
 LoadRemapRules()
@@ -191,7 +203,7 @@ RefreshRulesListView()
 RefreshRemapRulesListView()
 RefreshServiceStatus()
 chkAutostart.Value := IsAutostartTaskPresent() ? 1 : 0
-MainGui.Show()
+MainGui.Show("w595 h" windowH)
 return
 
 ; ---------------- Driver status / install ----------------
@@ -203,13 +215,19 @@ RefreshDriverStatus() {
         : "Driver status: NOT installed. Click 'Install Driver', then reboot."
 }
 
-IsDriverInstalled() {
+IsDriverInstalled(&reason := "") {
     kbClass := "HKLM\SYSTEM\CurrentControlSet\Control\Class\{4D36E96B-E325-11CE-BFC1-08002BE10318}"
     try {
         val := RegRead(kbClass, "UpperFilters")
-        if InStr(val, "keyboard")
-            return true
+    } catch as e {
+        reason := "RegRead(UpperFilters) threw: " e.Message
+        return false
     }
+    if InStr(val, "keyboard") {
+        reason := "OK"
+        return true
+    }
+    reason := "UpperFilters = [" val "] (doesn't contain 'keyboard')"
     return false
 }
 
@@ -254,19 +272,28 @@ OnReboot(*) {
 
 ; ---------------- AHI setup ----------------
 TrySetupAHI() {
-    global AHI
+    global AHI, LastAHIError
     if (AHI != "")
         return true
-    if (!IsDriverInstalled()) {
-        return false
+    ; Retry briefly - right after reboot/login there can be a short window
+    ; where the registry entry is written but a re-check a moment later
+    ; would already see it, so this rules out pure timing flukes.
+    loop 3 {
+        if (IsDriverInstalled(&reason)) {
+            try {
+                AHI := AutoHotInterception()
+                return true
+            } catch as e {
+                AHI := ""
+                LastAHIError := "AutoHotInterception() init failed: " e.Message
+                return false
+            }
+        }
+        LastAHIError := reason
+        if (A_Index < 3)
+            Sleep(500)
     }
-    try {
-        AHI := AutoHotInterception()
-        return true
-    } catch {
-        AHI := ""
-        return false
-    }
+    return false
 }
 
 ; ---------------- Device list ----------------
@@ -275,7 +302,7 @@ OnRefreshKeyboards(*) {
     lvDevices.Delete()
     DeviceCache := Map()
     if (!TrySetupAHI()) {
-        MsgBox("Driver isn't installed/active yet. Install it and reboot first.", "Not ready", "Iconx")
+        MsgBox("Driver isn't installed/active yet. Install it and reboot first.`n`nDetail: " LastAHIError, "Not ready", "Iconx")
         return
     }
     list := AHI.GetDeviceList()
@@ -299,7 +326,7 @@ OnCaptureKey(*) {
         return
     }
     if (!TrySetupAHI()) {
-        MsgBox("Driver isn't installed/active yet.", "Not ready", "Iconx")
+        MsgBox("Driver isn't installed/active yet.`n`nDetail: " LastAHIError, "Not ready", "Iconx")
         return
     }
     dev := DeviceCache[row]
@@ -406,7 +433,7 @@ OnStartBlocking(*) {
 StartBlocking() {
     global Rules, ActiveSubs, Blocking, lblStatus, AHI
     if (!TrySetupAHI()) {
-        MsgBox("Driver isn't installed/active yet. Install it and reboot first.", "Not ready", "Iconx")
+        MsgBox("Driver isn't installed/active yet. Install it and reboot first.`n`nDetail: " LastAHIError, "Not ready", "Iconx")
         return
     }
     if (Rules.Length = 0) {
@@ -455,7 +482,7 @@ OnCaptureSourceKey(*) {
         return
     }
     if (!TrySetupAHI()) {
-        MsgBox("Driver isn't installed/active yet.", "Not ready", "Iconx")
+        MsgBox("Driver isn't installed/active yet.`n`nDetail: " LastAHIError, "Not ready", "Iconx")
         return
     }
     dev := DeviceCache[row]
@@ -583,7 +610,7 @@ StartRemapping() {
     global RemapRules, ActiveRemapSubs, Remapping, lblStatus, AHI
     if (!TrySetupAHI()) {
         if (RemapRules.Length > 0)
-            MsgBox("Driver isn't installed/active yet. Install it and reboot first.", "Not ready", "Iconx")
+            MsgBox("Driver isn't installed/active yet. Install it and reboot first.`n`nDetail: " LastAHIError, "Not ready", "Iconx")
         return
     }
     if (RemapRules.Length = 0) {
