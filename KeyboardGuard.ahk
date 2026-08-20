@@ -45,12 +45,22 @@ if (A_IsCompiled) {
             FileInstall("Lib\AutoHotInterception.ahk", "Lib\AutoHotInterception.ahk", 1)
         if !FileExist("Lib\CLR.ahk")
             FileInstall("Lib\CLR.ahk", "Lib\CLR.ahk", 1)
+        ; The managed .NET assembly the whole library hosts via the CLR - this
+        ; was missing from earlier builds (silently masked by a leftover copy
+        ; from early testing), which would break on any fresh install.
+        if !FileExist("Lib\AutoHotInterception.dll")
+            FileInstall("Lib\AutoHotInterception.dll", "Lib\AutoHotInterception.dll", 1)
         if !FileExist("Lib\x64\interception.dll")
             FileInstall("Lib\x64\interception.dll", "Lib\x64\interception.dll", 1)
         if !FileExist("install-interception.exe")
             FileInstall("install-interception.exe", "install-interception.exe", 1)
         if !FileExist("nssm.exe")
             FileInstall("nssm.exe", "nssm.exe", 1)
+        ; Strip "downloaded from the internet" marks if present - the .NET
+        ; CLR can silently fail to load an assembly flagged this way (fails
+        ; with a generic "Failed" error, which is what led to finding this).
+        for f in ["Lib\AutoHotInterception.dll", "Lib\x64\interception.dll", "install-interception.exe", "nssm.exe"]
+            try FileDelete(f ":Zone.Identifier")
     } catch as e {
         MsgBox("KeyboardGuard couldn't write its files to:`n" A_ScriptDir "`n`nError: " e.Message "`n`nTry running it as administrator, or reinstall it.", "Startup error", "Iconx")
         ExitApp
@@ -103,30 +113,32 @@ TryStartInAutoMode() {
 }
 
 ; ---------------- GUI ----------------
-MainGui := Gui("", "KeyboardGuard")
+; +Resize gives a normal resizable window with minimize/maximize/close all
+; present, so it can be maximized or resized to fit smaller laptop screens.
+MainGui := Gui("+Resize", "KeyboardGuard")
 MainGui.SetFont("s10")
 MainGui.OnEvent("Close", (*) => ExitApp())
 
-MainGui.Add("GroupBox", "x15 y15 w560 h110", "Step 1 - Interception Driver")
-lblDriver := MainGui.Add("Text", "x30 y40 w530", "Checking driver status...")
-btnInstallDriver := MainGui.Add("Button", "x30 y75 w170", "Install Driver")
+MainGui.Add("GroupBox", "x15 y15 w560 h95", "Step 1 - Interception Driver")
+lblDriver := MainGui.Add("Text", "x30 y38 w530", "Checking driver status...")
+btnInstallDriver := MainGui.Add("Button", "x30 y68 w170", "Install Driver")
 btnInstallDriver.OnEvent("Click", OnInstallDriver)
-btnUninstallDriver := MainGui.Add("Button", "x210 y75 w170", "Uninstall Driver")
+btnUninstallDriver := MainGui.Add("Button", "x210 y68 w170", "Uninstall Driver")
 btnUninstallDriver.OnEvent("Click", OnUninstallDriver)
-btnReboot := MainGui.Add("Button", "x390 y75 w170", "Reboot Now")
+btnReboot := MainGui.Add("Button", "x390 y68 w170", "Reboot Now")
 btnReboot.OnEvent("Click", OnReboot)
 
-MainGui.Add("GroupBox", "x15 y135 w560 h115", "Step 2 - Choose Keyboard")
-btnRefresh := MainGui.Add("Button", "x30 y160 w170", "Refresh Keyboard List")
+MainGui.Add("GroupBox", "x15 y118 w560 h100", "Step 2 - Choose Keyboard")
+btnRefresh := MainGui.Add("Button", "x30 y141 w170", "Refresh Keyboard List")
 btnRefresh.OnEvent("Click", OnRefreshKeyboards)
-lvDevices := MainGui.Add("ListView", "x210 y157 w350 h85", ["ID", "VID", "PID", "Handle"])
+lvDevices := MainGui.Add("ListView", "x210 y138 w350 h72", ["ID", "VID", "PID", "Handle"])
 lvDevices.ModifyCol(1, 30)
 lvDevices.ModifyCol(2, 70)
 lvDevices.ModifyCol(3, 70)
 lvDevices.ModifyCol(4, 165)
 
-tabY := 260
-tabH := 330
+tabY := 226
+tabH := 300
 tab := MainGui.Add("Tab3", "x15 y" tabY " w560 h" tabH, ["Block a Key", "Remap a Key"])
 
 ; ---- Tab 1: Block a Key ----
@@ -178,23 +190,23 @@ tab.UseTab()
 ; bottom edge (tabY + tabH), NOT relative "y+N" flow - relative flow after a
 ; Tab3 control measures from wherever the last tab-page control happened to
 ; land, which can be well inside the tab's visible rectangle and overlap it.
-belowTabY := tabY + tabH + 15
+belowTabY := tabY + tabH + 10
 
 chkAutostart := MainGui.Add("Checkbox", "x15 y" belowTabY, "Run automatically after I log in (background, tray icon)")
 chkAutostart.OnEvent("Click", OnAutostartToggle)
 
-svcBoxY := belowTabY + 25
-MainGui.Add("GroupBox", "x15 y" svcBoxY " w560 h95", "Step 3 - Protect The Lock/Login Screen Too (Windows Service)")
-lblServiceInfo := MainGui.Add("Text", "x30 y" (svcBoxY + 22) " w530", "Runs from boot, before you log in, so blocked/remapped keys work even on the password screen. Needs Step 1 driver + at least one rule above.")
-lblServiceStatus := MainGui.Add("Text", "x30 y" (svcBoxY + 44) " w530", "Service status: checking...")
-btnInstallService := MainGui.Add("Button", "x30 y" (svcBoxY + 62) " w170", "Install As Service")
+svcBoxY := belowTabY + 20
+MainGui.Add("GroupBox", "x15 y" svcBoxY " w560 h90", "Step 3 - Protect The Lock/Login Screen Too (Windows Service)")
+lblServiceInfo := MainGui.Add("Text", "x30 y" (svcBoxY + 20) " w530", "Runs from boot, before you log in, so blocked/remapped keys work even on the password screen. Needs Step 1 driver + at least one rule above.")
+lblServiceStatus := MainGui.Add("Text", "x30 y" (svcBoxY + 42) " w530", "Service status: checking...")
+btnInstallService := MainGui.Add("Button", "x30 y" (svcBoxY + 58) " w170", "Install As Service")
 btnInstallService.OnEvent("Click", OnInstallService)
-btnUninstallService := MainGui.Add("Button", "x210 y" (svcBoxY + 62) " w170", "Uninstall Service")
+btnUninstallService := MainGui.Add("Button", "x210 y" (svcBoxY + 58) " w170", "Uninstall Service")
 btnUninstallService.OnEvent("Click", OnUninstallService)
 
-statusY := svcBoxY + 110
+statusY := svcBoxY + 98
 lblStatus := MainGui.Add("Text", "x15 y" statusY " w560", "Ready.")
-windowH := statusY + 30
+windowH := statusY + 25
 
 LoadRules()
 LoadRemapRules()
