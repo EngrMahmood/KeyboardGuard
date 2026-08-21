@@ -12,8 +12,9 @@ KeyboardGuard uses the [Interception](https://github.com/oblitum/Interception) k
 
 - **Block a Key** — swallow a specific key on a specific keyboard so it never reaches Windows.
 - **Remap a Key** — swallow a specific key on a specific keyboard and send a different key/combo instead (so you can reuse a working spare key's position to perform a faulty key's job, or vice versa).
+- **Disable Whole Keyboard** — swallow every key on a specific keyboard, e.g. to stop using a laptop's built-in keyboard entirely and rely only on an external one.
 - **Virtual keyboard capture** — a stuck key still fires real keystrokes, so a physical key press can be captured for it, but a fully dead key sends nothing at all. Either side of a block or remap rule can instead be picked by clicking a key on an on-screen keyboard, which resolves it to the same scan code a real press would have produced.
-- **Protect the lock/login screen** — installs itself as a Windows Service (via [NSSM](https://nssm.cc/)) that starts at boot, before any user logs in, so **block** rules are active even on the password screen. Remap rules send synthetic keystrokes to the desktop, which Windows Services cannot do while no one is logged in ([Session 0 isolation](https://learn.microsoft.com/en-us/windows/win32/services/interactive-services)) — so remap rules only run once you're logged in (via "Run automatically after I log in").
+- **Protect the lock/login screen** — installs itself as a Windows Service (via [NSSM](https://nssm.cc/)) that starts at boot, before any user logs in, so **block** and **disable-whole-keyboard** rules are active even on the password screen. Remap rules send synthetic keystrokes to the desktop, which Windows Services cannot do while no one is logged in ([Session 0 isolation](https://learn.microsoft.com/en-us/windows/win32/services/interactive-services)) — so remap rules only run once you're logged in (via "Run automatically after I log in").
 - Self-contained: the compiled exe embeds its own copy of the AutoHotInterception bridge, the Interception driver installer, and NSSM, and extracts them next to itself on first run.
 
 ## Requirements
@@ -32,7 +33,8 @@ Run `KeyboardGuard-Setup.exe`. It installs to `C:\Program Files\KeyboardGuard`, 
 2. **Step 2** — click "Refresh Keyboard List" and select the keyboard with the faulty key (an internal/laptop keyboard usually shows an `ACPI\...` handle).
 3. **Block a Key tab** — "Capture Key From Selected", press the faulty key, "Add As Blocked Rule", then "Start Blocking". If the key sends no signal at all (fully dead, not just stuck/repeating), use "Pick From Virtual Keyboard" instead of physical capture.
 4. **Remap a Key tab** — reuse a working key's position for your faulty key's job, or vice versa. "Source" is the key you'll physically press (usually a spare/working key); "Target" is what it should send instead (often your faulty key's own action, e.g. Backspace). Both sides have their own "Pick From Virtual Keyboard" option, for when either the source or the target key is fully dead and can't be captured by pressing it. Capture both, "Add As Remap Rule", then "Start Remapping".
-5. **Autostart & Lock Screen tab** — check "Run automatically after I log in" for autostart, and "Install As Service" to keep block rules active from boot, including the lock/login screen (remap rules need a logged-in desktop, so they only apply after login).
+5. **Disable Whole Keyboard tab** — select the built-in keyboard above, "Disable Selected Keyboard", then "Start Disabling" to ignore every key on it (useful if you want to work entirely from an external keyboard).
+6. **Autostart & Lock Screen tab** — check "Run automatically after I log in" for autostart, and "Install As Service" to keep block and disable-whole-keyboard rules active from boot, including the lock/login screen (remap rules need a logged-in desktop, so they only apply after login).
 
 ## Building from source
 

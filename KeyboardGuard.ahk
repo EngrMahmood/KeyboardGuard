@@ -73,6 +73,7 @@ if (A_IsCompiled) {
 ; own separate profile) read/write the same rules files.
 RulesFile := A_AppDataCommon "\KeyboardGuard\rules.txt"
 RemapRulesFile := A_AppDataCommon "\KeyboardGuard\remap_rules.txt"
+DisableRulesFile := A_AppDataCommon "\KeyboardGuard\disable_rules.txt"
 DirCreate(A_AppDataCommon "\KeyboardGuard")
 
 AHI := ""                  ; lazily-created AutoHotInterception instance
@@ -82,6 +83,9 @@ Blocking := false
 RemapRules := []            ; remap rules: {vid, pid, handle, code, keyname, targetkey}
 ActiveRemapSubs := []        ; list of {id, code} currently subscribed while remapping
 Remapping := false
+DisableRules := []          ; whole-device disable rules: {vid, pid, handle}
+ActiveDisableSubs := []      ; list of device ids currently subscribed while disabling
+Disabling := false
 DeviceCache := Map()        ; index shown in list -> {id, vid, pid, handle}
 CapturedCode := 0
 Capturing := false
@@ -95,6 +99,7 @@ LastAHIError := ""
 if (A_Args.Length > 0 && A_Args[1] = "/auto") {
     LoadRules()
     LoadRemapRules()
+    LoadDisableRules()
     ; Retry for a while in case this runs as a service starting at boot,
     ; before the Interception driver has finished initializing.
     SetTimer(TryStartInAutoMode, 5000)
@@ -122,6 +127,7 @@ TryStartInAutoMode() {
         return
     if (TrySetupAHI()) {
         StartBlocking()
+        StartDisabling()
         if IsInteractiveSession()
             StartRemapping()
         SetTimer(TryStartInAutoMode, 0)
@@ -157,7 +163,7 @@ lvDevices.ModifyCol(4, 165)
 ; plus the rule list and action buttons) - see the tabH slack comment below.
 tabY := 226
 tabH := 376
-tab := MainGui.Add("Tab3", "x15 y" tabY " w560 h" tabH, ["Block a Key", "Remap a Key", "Autostart && Lock Screen"])
+tab := MainGui.Add("Tab3", "x15 y" tabY " w560 h" tabH, ["Block a Key", "Remap a Key", "Disable Whole Keyboard", "Autostart && Lock Screen"])
 
 ; ---- Tab 1: Block a Key ----
 tab.UseTab(1)
@@ -221,11 +227,32 @@ btnStartRemap.OnEvent("Click", OnStartRemapping)
 btnStopRemap := MainGui.Add("Button", "x390 y" (contentTop + 270) " w170 h30", "Stop Remapping")
 btnStopRemap.OnEvent("Click", OnStopRemapping)
 
-; ---- Tab 3: Autostart & Lock Screen ----
+; ---- Tab 3: Disable Whole Keyboard ----
+; A block/remap rule targets one key; this targets every key on the device
+; at once, e.g. to stop using a laptop's built-in keyboard entirely and rely
+; only on an external one. It's just a whole-device block (SubscribeKeyboard
+; with block=true swallows every key on that device, same underlying
+; mechanism as a single-key block rule) so it works from the Windows Service
+; too, protecting the lock screen the same way block rules do.
+tab.UseTab(3)
+btnAddDisableRule := MainGui.Add("Button", "x30 y" contentTop " w170 h30", "Disable Selected Keyboard")
+btnAddDisableRule.OnEvent("Click", OnAddDisableRule)
+MainGui.Add("Text", "x210 y" (contentTop + 6) " w350", "Blocks every key on the device selected above, not just one.")
+
+lvDisableRules := MainGui.Add("ListView", "x30 y" (contentTop + 40) " w530 h100", ["Disabled Keyboard"])
+lvDisableRules.ModifyCol(1, 510)
+btnRemoveDisableRule := MainGui.Add("Button", "x30 y" (contentTop + 150) " w170 h30", "Remove Selected")
+btnRemoveDisableRule.OnEvent("Click", OnRemoveDisableRule)
+btnStartDisable := MainGui.Add("Button", "x210 y" (contentTop + 150) " w170 h30", "Start Disabling")
+btnStartDisable.OnEvent("Click", OnStartDisabling)
+btnStopDisable := MainGui.Add("Button", "x390 y" (contentTop + 150) " w170 h30", "Stop Disabling")
+btnStopDisable.OnEvent("Click", OnStopDisabling)
+
+; ---- Tab 4: Autostart & Lock Screen ----
 ; Moved off the main window (rather than always visible below the tabs) so
 ; the window fits on smaller/laptop screens - this content is only needed
 ; during initial setup, not on every glance at the window.
-tab.UseTab(3)
+tab.UseTab(4)
 chkAutostart := MainGui.Add("Checkbox", "x30 y" contentTop, "Run automatically after I log in (background, tray icon)")
 chkAutostart.OnEvent("Click", OnAutostartToggle)
 
@@ -250,9 +277,11 @@ windowH := statusY + 25
 
 LoadRules()
 LoadRemapRules()
+LoadDisableRules()
 RefreshDriverStatus()
 RefreshRulesListView()
 RefreshRemapRulesListView()
+RefreshDisableRulesListView()
 RefreshServiceStatus()
 chkAutostart.Value := IsAutostartTaskPresent() ? 1 : 0
 MainGui.Show("w595 h" windowH)
@@ -898,6 +927,127 @@ StopRemapping() {
     Remapping := false
 }
 
+; ---------------- Disable Whole Keyboard ----------------
+OnAddDisableRule(*) {
+    global lvDevices, DeviceCache, DisableRules
+    row := lvDevices.GetNext()
+    if (!row) {
+        MsgBox("Select a keyboard in the list first (click Refresh if the list is empty).", "No selection")
+        return
+    }
+    dev := DeviceCache[row]
+    for r in DisableRules {
+        if (r.handle = dev.handle) {
+            MsgBox("That keyboard is already in the disable list.", "Already added")
+            return
+        }
+    }
+    DisableRules.Push({vid: dev.vid, pid: dev.pid, handle: dev.handle})
+    SaveDisableRules()
+    RefreshDisableRulesListView()
+    MsgBox("Added. Click 'Start Disabling' to apply it now.", "Disable Selected Keyboard", "Iconi")
+}
+
+OnRemoveDisableRule(*) {
+    global lvDisableRules, DisableRules
+    row := lvDisableRules.GetNext()
+    if (!row) {
+        MsgBox("Select a keyboard to remove.", "No selection")
+        return
+    }
+    DisableRules.RemoveAt(row)
+    SaveDisableRules()
+    RefreshDisableRulesListView()
+    MsgBox("Removed.", "Remove Selected", "Iconi")
+}
+
+RefreshDisableRulesListView() {
+    global lvDisableRules, DisableRules
+    lvDisableRules.Delete()
+    for r in DisableRules
+        lvDisableRules.Add(, r.handle)
+}
+
+SaveDisableRules() {
+    global DisableRulesFile, DisableRules
+    text := ""
+    for r in DisableRules
+        text .= r.vid "|" r.pid "|" r.handle "`n"
+    if FileExist(DisableRulesFile)
+        FileDelete(DisableRulesFile)
+    if (text != "")
+        FileAppend(text, DisableRulesFile)
+}
+
+LoadDisableRules() {
+    global DisableRulesFile, DisableRules
+    DisableRules := []
+    if (!FileExist(DisableRulesFile))
+        return
+    for line in StrSplit(FileRead(DisableRulesFile), "`n", "`r") {
+        if (Trim(line) = "")
+            continue
+        parts := StrSplit(line, "|")
+        if (parts.Length >= 3)
+            DisableRules.Push({vid: Integer(parts[1]), pid: Integer(parts[2]), handle: parts[3]})
+    }
+}
+
+OnStartDisabling(*) {
+    global ActiveDisableSubs, DisableRules
+    StartDisabling()
+    if (ActiveDisableSubs.Length > 0)
+        MsgBox("Disabling is now ON: " ActiveDisableSubs.Length " of " DisableRules.Length " keyboard(s) fully disabled.", "Start Disabling", "Iconi")
+    else if (DisableRules.Length > 0)
+        MsgBox("Disabling did NOT start - 0 of " DisableRules.Length " keyboard(s) could be applied. The selected device may not currently be connected.", "Start Disabling", "Iconx")
+}
+
+; SubscribeKeyboard(id, true, ...) blocks every key on that device outright -
+; the callback is only invoked for monitoring, the block itself doesn't
+; depend on what the callback does, so this needs no Send() and works from
+; the Windows Service (Session 0) the same way single-key blocking does.
+StartDisabling() {
+    global DisableRules, ActiveDisableSubs, Disabling, lblStatus, AHI
+    if (!TrySetupAHI()) {
+        if (DisableRules.Length > 0)
+            MsgBox("Driver isn't installed/active yet. Install it and reboot first.`n`nDetail: " LastAHIError, "Not ready", "Iconx")
+        return
+    }
+    if (DisableRules.Length = 0)
+        return
+    StopDisabling()
+    count := 0
+    for r in DisableRules {
+        try {
+            id := AHI.GetKeyboardIdFromHandle(r.handle)
+            AHI.SubscribeKeyboard(id, true, (code, state) => "")
+            ActiveDisableSubs.Push(id)
+            count += 1
+        }
+    }
+    Disabling := true
+    if IsSet(lblStatus)
+        lblStatus.Text := "Disabling active - " count " of " DisableRules.Length " keyboard(s) fully disabled."
+}
+
+OnStopDisabling(*) {
+    StopDisabling()
+    if IsSet(lblStatus)
+        lblStatus.Text := "Disabling stopped."
+    MsgBox("Disabling is now OFF.", "Stop Disabling", "Iconi")
+}
+
+StopDisabling() {
+    global ActiveDisableSubs, AHI, Disabling
+    if (AHI = "")
+        return
+    for id in ActiveDisableSubs {
+        try AHI.UnsubscribeKeyboard(id)
+    }
+    ActiveDisableSubs := []
+    Disabling := false
+}
+
 ; ---------------- Autostart (Scheduled Task, so no UAC prompt at each login) ----------------
 OnAutostartToggle(ctrl, *) {
     exePath := A_ScriptFullPath
@@ -1002,8 +1152,8 @@ GetServiceState() {
 ; ---------------- Tray (used in /auto silent mode) ----------------
 TraySetup() {
     A_TrayMenu.Delete()
-    A_TrayMenu.Add("Stop All", (*) => (StopBlocking(), StopRemapping()))
-    A_TrayMenu.Add("Start All", (*) => (StartBlocking(), StartRemapping()))
+    A_TrayMenu.Add("Stop All", (*) => (StopBlocking(), StopDisabling(), StopRemapping()))
+    A_TrayMenu.Add("Start All", (*) => (StartBlocking(), StartDisabling(), StartRemapping()))
     A_TrayMenu.Add("Exit", (*) => ExitApp())
     TrayTip("KeyboardGuard", "Running in background, protecting configured key(s).")
 }
