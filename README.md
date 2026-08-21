@@ -11,8 +11,9 @@ KeyboardGuard uses the [Interception](https://github.com/oblitum/Interception) k
 ## Features
 
 - **Block a Key** — swallow a specific key on a specific keyboard so it never reaches Windows.
-- **Remap a Key** — swallow a specific key on a specific keyboard and send a different key/combo instead (so you can reuse a faulty key's position for something else).
-- **Protect the lock/login screen** — installs itself as a Windows Service (via [NSSM](https://nssm.cc/)) that starts at boot, before any user logs in, so blocking/remapping is active even on the password screen.
+- **Remap a Key** — swallow a specific key on a specific keyboard and send a different key/combo instead (so you can reuse a working spare key's position to perform a faulty key's job, or vice versa).
+- **Virtual keyboard capture** — a stuck key still fires real keystrokes, so a physical key press can be captured for it, but a fully dead key sends nothing at all. Either side of a block or remap rule can instead be picked by clicking a key on an on-screen keyboard, which resolves it to the same scan code a real press would have produced.
+- **Protect the lock/login screen** — installs itself as a Windows Service (via [NSSM](https://nssm.cc/)) that starts at boot, before any user logs in, so **block** rules are active even on the password screen. Remap rules send synthetic keystrokes to the desktop, which Windows Services cannot do while no one is logged in ([Session 0 isolation](https://learn.microsoft.com/en-us/windows/win32/services/interactive-services)) — so remap rules only run once you're logged in (via "Run automatically after I log in").
 - Self-contained: the compiled exe embeds its own copy of the AutoHotInterception bridge, the Interception driver installer, and NSSM, and extracts them next to itself on first run.
 
 ## Requirements
