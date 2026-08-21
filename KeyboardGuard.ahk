@@ -152,7 +152,7 @@ lvDevices.ModifyCol(3, 70)
 lvDevices.ModifyCol(4, 165)
 
 tabY := 226
-tabH := 300
+tabH := 340
 tab := MainGui.Add("Tab3", "x15 y" tabY " w560 h" tabH, ["Block a Key", "Remap a Key"])
 
 ; ---- Tab 1: Block a Key ----
@@ -162,17 +162,21 @@ btnCapture := MainGui.Add("Button", "x30 y" contentTop " w170 h30", "Capture Key
 btnCapture.OnEvent("Click", OnCaptureKey)
 lblCapture := MainGui.Add("Text", "x210 y" (contentTop + 6) " w350", "Select a device above, click Capture, then press the key.")
 
-btnAddRule := MainGui.Add("Button", "x30 y" (contentTop + 40) " w170 h30", "Add As Blocked Rule")
+btnVirtualKb := MainGui.Add("Button", "x30 y" (contentTop + 36) " w170 h30", "Pick From Virtual Keyboard")
+btnVirtualKb.OnEvent("Click", OnVirtualKeyboardBlock)
+MainGui.Add("Text", "x210 y" (contentTop + 42) " w350", "Use this if the key sends no signal at all (fully dead, not just stuck).")
+
+btnAddRule := MainGui.Add("Button", "x30 y" (contentTop + 72) " w170 h30", "Add As Blocked Rule")
 btnAddRule.OnEvent("Click", OnAddRule)
 
-lvRules := MainGui.Add("ListView", "x30 y" (contentTop + 80) " w530 h100", ["Device", "Key Blocked"])
+lvRules := MainGui.Add("ListView", "x30 y" (contentTop + 108) " w530 h100", ["Device", "Key Blocked"])
 lvRules.ModifyCol(1, 430)
 lvRules.ModifyCol(2, 100)
-btnRemoveRule := MainGui.Add("Button", "x30 y" (contentTop + 190) " w170 h30", "Remove Selected Rule")
+btnRemoveRule := MainGui.Add("Button", "x30 y" (contentTop + 218) " w170 h30", "Remove Selected Rule")
 btnRemoveRule.OnEvent("Click", OnRemoveRule)
-btnStart := MainGui.Add("Button", "x210 y" (contentTop + 190) " w170 h30", "Start Blocking")
+btnStart := MainGui.Add("Button", "x210 y" (contentTop + 218) " w170 h30", "Start Blocking")
 btnStart.OnEvent("Click", OnStartBlocking)
-btnStop := MainGui.Add("Button", "x390 y" (contentTop + 190) " w170 h30", "Stop Blocking")
+btnStop := MainGui.Add("Button", "x390 y" (contentTop + 218) " w170 h30", "Stop Blocking")
 btnStop.OnEvent("Click", OnStopBlocking)
 
 ; ---- Tab 2: Remap a Key ----
@@ -181,22 +185,26 @@ btnCaptureSource := MainGui.Add("Button", "x30 y" contentTop " w170 h30", "Captu
 btnCaptureSource.OnEvent("Click", OnCaptureSourceKey)
 lblCaptureSource := MainGui.Add("Text", "x210 y" (contentTop + 6) " w350", "Select a device above, click here, then press the faulty key.")
 
-btnCaptureTarget := MainGui.Add("Button", "x30 y" (contentTop + 40) " w170 h30", "Capture Key To Send Instead")
-btnCaptureTarget.OnEvent("Click", OnCaptureTargetKey)
-lblCaptureTarget := MainGui.Add("Text", "x210 y" (contentTop + 46) " w350", "Click here, then press any key/key combo - it can be on any keyboard.")
+btnVirtualKbSource := MainGui.Add("Button", "x30 y" (contentTop + 36) " w170 h30", "Pick From Virtual Keyboard")
+btnVirtualKbSource.OnEvent("Click", OnVirtualKeyboardRemapSource)
+MainGui.Add("Text", "x210 y" (contentTop + 42) " w350", "Use this if the key sends no signal at all (fully dead, not just stuck).")
 
-btnAddRemapRule := MainGui.Add("Button", "x30 y" (contentTop + 80) " w170 h30", "Add As Remap Rule")
+btnCaptureTarget := MainGui.Add("Button", "x30 y" (contentTop + 72) " w170 h30", "Capture Key To Send Instead")
+btnCaptureTarget.OnEvent("Click", OnCaptureTargetKey)
+lblCaptureTarget := MainGui.Add("Text", "x210 y" (contentTop + 78) " w350", "Click here, then press any key/key combo - it can be on any keyboard.")
+
+btnAddRemapRule := MainGui.Add("Button", "x30 y" (contentTop + 108) " w170 h30", "Add As Remap Rule")
 btnAddRemapRule.OnEvent("Click", OnAddRemapRule)
 
-lvRemapRules := MainGui.Add("ListView", "x30 y" (contentTop + 120) " w530 h80", ["Device", "From", "To"])
+lvRemapRules := MainGui.Add("ListView", "x30 y" (contentTop + 144) " w530 h80", ["Device", "From", "To"])
 lvRemapRules.ModifyCol(1, 330)
 lvRemapRules.ModifyCol(2, 100)
 lvRemapRules.ModifyCol(3, 100)
-btnRemoveRemapRule := MainGui.Add("Button", "x30 y" (contentTop + 210) " w170 h30", "Remove Selected Rule")
+btnRemoveRemapRule := MainGui.Add("Button", "x30 y" (contentTop + 234) " w170 h30", "Remove Selected Rule")
 btnRemoveRemapRule.OnEvent("Click", OnRemoveRemapRule)
-btnStartRemap := MainGui.Add("Button", "x210 y" (contentTop + 210) " w170 h30", "Start Remapping")
+btnStartRemap := MainGui.Add("Button", "x210 y" (contentTop + 234) " w170 h30", "Start Remapping")
 btnStartRemap.OnEvent("Click", OnStartRemapping)
-btnStopRemap := MainGui.Add("Button", "x390 y" (contentTop + 210) " w170 h30", "Stop Remapping")
+btnStopRemap := MainGui.Add("Button", "x390 y" (contentTop + 234) " w170 h30", "Stop Remapping")
 btnStopRemap.OnEvent("Click", OnStopRemapping)
 
 tab.UseTab()
@@ -391,6 +399,118 @@ StopCapture(id) {
         try AHI.UnsubscribeKeyboard(id)
         lblCapture.Text := "No key detected within 8 seconds. Try again."
     }
+}
+
+; ---------------- Virtual keyboard (for a key that sends no signal at all) ----------------
+; A stuck key still fires real keystrokes (often repeatedly), so physical
+; capture works fine for it. A dead key sends nothing, so there is no
+; keystroke to capture - this lets you pick it by clicking its picture
+; instead, using AHK's own key-name-to-scancode table rather than reading a
+; press from the hardware.
+OnVirtualKeyboardBlock(*) {
+    global lvDevices
+    if (!lvDevices.GetNext()) {
+        MsgBox("Select a keyboard in the list first (click Refresh if the list is empty).", "No selection")
+        return
+    }
+    ShowVirtualKeyboard(VKBlockPicked)
+}
+
+VKBlockPicked(code, keyName) {
+    global CapturedCode, lblCapture
+    CapturedCode := code
+    lblCapture.Text := "Captured: " keyName " (via virtual keyboard, scan code 0x" Format("{:X}", code) "). Click 'Add As Blocked Rule' to save it."
+}
+
+OnVirtualKeyboardRemapSource(*) {
+    global lvDevices
+    if (!lvDevices.GetNext()) {
+        MsgBox("Select a keyboard in the list first (click Refresh if the list is empty).", "No selection")
+        return
+    }
+    ShowVirtualKeyboard(VKRemapSourcePicked)
+}
+
+VKRemapSourcePicked(code, keyName) {
+    global CapturedCode, lblCaptureSource
+    CapturedCode := code
+    lblCaptureSource.Text := "Captured source: " keyName " (via virtual keyboard, scan code 0x" Format("{:X}", code) ")."
+}
+
+; onPick(code, keyName) is called once, with the scan code (matching what
+; physical capture would have produced) and the AHK key name, then the
+; popup closes itself.
+ShowVirtualKeyboard(onPick) {
+    vk := Gui("+AlwaysOnTop +ToolWindow", "Virtual Keyboard - Click The Key")
+    vk.SetFont("s9")
+    vk.OnEvent("Close", (*) => vk.Destroy())
+    vk.OnEvent("Escape", (*) => vk.Destroy())
+
+    unit := 34
+    rows := [
+        [["Esc","Escape",1.5],["F1","F1",1],["F2","F2",1],["F3","F3",1],["F4","F4",1],["F5","F5",1],["F6","F6",1],["F7","F7",1],["F8","F8",1],["F9","F9",1],["F10","F10",1],["F11","F11",1],["F12","F12",1]],
+        [["``","``",1],["1","1",1],["2","2",1],["3","3",1],["4","4",1],["5","5",1],["6","6",1],["7","7",1],["8","8",1],["9","9",1],["0","0",1],["-","-",1],["=","=",1],["Backspace","Backspace",2]],
+        [["Tab","Tab",1.5],["Q","Q",1],["W","W",1],["E","E",1],["R","R",1],["T","T",1],["Y","Y",1],["U","U",1],["I","I",1],["O","O",1],["P","P",1],["[","[",1],["]","]",1],["\","\",1]],
+        [["Caps","CapsLock",1.75],["A","A",1],["S","S",1],["D","D",1],["F","F",1],["G","G",1],["H","H",1],["J","J",1],["K","K",1],["L","L",1],[";",";",1],["'","'",1],["Enter","Enter",2.25]],
+        [["Shift","LShift",2.25],["Z","Z",1],["X","X",1],["C","C",1],["V","V",1],["B","B",1],["N","N",1],["M","M",1],[",",",",1],[".",".",1],["/","/",1],["Shift","RShift",2.25]],
+        [["Ctrl","LCtrl",1.5],["Win","LWin",1.25],["Alt","LAlt",1.25],["Space","Space",6.25],["Alt","RAlt",1.25],["Win","RWin",1.25],["Menu","AppsKey",1.25],["Ctrl","RCtrl",1.5]]
+    ]
+
+    y := 10
+    for row in rows {
+        x := 10
+        for keyDef in row {
+            label := keyDef[1], keyName := keyDef[2], w := Round(keyDef[3] * unit) - 2
+            btn := vk.Add("Button", "x" x " y" y " w" w " h" (unit - 2), label)
+            btn.OnEvent("Click", VKKeyClicked.Bind(keyName, onPick, vk))
+            x += Round(keyDef[3] * unit)
+        }
+        y += unit
+    }
+
+    ; Navigation / editing cluster, laid out separately below the main block.
+    navRows := [
+        [["Insert","Insert",1],["Home","Home",1],["PgUp","PgUp",1]],
+        [["Delete","Delete",1],["End","End",1],["PgDn","PgDn",1]]
+    ]
+    y += 10
+    navStartY := y
+    for row in navRows {
+        x := 10
+        for keyDef in row {
+            label := keyDef[1], keyName := keyDef[2], w := Round(keyDef[3] * unit) - 2
+            btn := vk.Add("Button", "x" x " y" y " w" w " h" (unit - 2), label)
+            btn.OnEvent("Click", VKKeyClicked.Bind(keyName, onPick, vk))
+            x += Round(keyDef[3] * unit)
+        }
+        y += unit
+    }
+
+    ; Arrow cluster, to the right of the nav cluster.
+    arrowX := 10 + Round(3 * unit) + 20
+    btnUp := vk.Add("Button", "x" (arrowX + Round(unit)) " y" navStartY " w" (unit - 2) " h" (unit - 2), "Up")
+    btnUp.OnEvent("Click", VKKeyClicked.Bind("Up", onPick, vk))
+    y2 := navStartY + unit
+    btnLeft := vk.Add("Button", "x" arrowX " y" y2 " w" (unit - 2) " h" (unit - 2), "Left")
+    btnLeft.OnEvent("Click", VKKeyClicked.Bind("Left", onPick, vk))
+    btnDown := vk.Add("Button", "x" (arrowX + Round(unit)) " y" y2 " w" (unit - 2) " h" (unit - 2), "Down")
+    btnDown.OnEvent("Click", VKKeyClicked.Bind("Down", onPick, vk))
+    btnRight := vk.Add("Button", "x" (arrowX + Round(2 * unit)) " y" y2 " w" (unit - 2) " h" (unit - 2), "Right")
+    btnRight.OnEvent("Click", VKKeyClicked.Bind("Right", onPick, vk))
+
+    y += unit + 15
+    vk.Add("Text", "x10 y" y " w600", "Click Cancel, or the X, if you don't see the key here - not every key is listed.")
+    y += 25
+    btnCancel := vk.Add("Button", "x10 y" y " w120 h28", "Cancel")
+    btnCancel.OnEvent("Click", (*) => vk.Destroy())
+
+    vk.Show()
+}
+
+VKKeyClicked(keyName, onPick, vk, *) {
+    code := GetKeySC(keyName)
+    vk.Destroy()
+    onPick(code, keyName)
 }
 
 ; ---------------- Block Rules ----------------
