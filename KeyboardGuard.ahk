@@ -153,9 +153,11 @@ lvDevices.ModifyCol(2, 70)
 lvDevices.ModifyCol(3, 70)
 lvDevices.ModifyCol(4, 165)
 
+; tabH is sized for the Remap tab's content (its tallest page, 4 capture rows
+; plus the rule list and action buttons) - see the tabH slack comment below.
 tabY := 226
-tabH := 340
-tab := MainGui.Add("Tab3", "x15 y" tabY " w560 h" tabH, ["Block a Key", "Remap a Key"])
+tabH := 376
+tab := MainGui.Add("Tab3", "x15 y" tabY " w560 h" tabH, ["Block a Key", "Remap a Key", "Autostart && Lock Screen"])
 
 ; ---- Tab 1: Block a Key ----
 tab.UseTab(1)
@@ -182,54 +184,67 @@ btnStop := MainGui.Add("Button", "x390 y" (contentTop + 218) " w170 h30", "Stop 
 btnStop.OnEvent("Click", OnStopBlocking)
 
 ; ---- Tab 2: Remap a Key ----
+; "Source" is the key you physically press - almost always a spare/working
+; key, since a stuck key floods presses and a dead key sends none at all.
+; "Target" is what gets sent instead - this is normally your faulty key's
+; own action (e.g. Backspace), which is exactly why it also needs a virtual
+; keyboard option: if the faulty key is fully dead you can't capture its
+; action by pressing it, physically, as the target either.
 tab.UseTab(2)
 btnCaptureSource := MainGui.Add("Button", "x30 y" contentTop " w170 h30", "Capture Source Key")
 btnCaptureSource.OnEvent("Click", OnCaptureSourceKey)
-lblCaptureSource := MainGui.Add("Text", "x210 y" (contentTop + 6) " w350", "Select a device above, click here, then press the faulty key.")
+lblCaptureSource := MainGui.Add("Text", "x210 y" (contentTop + 6) " w350", "Usually your spare key. Select a device, click here, then press it.")
 
 btnVirtualKbSource := MainGui.Add("Button", "x30 y" (contentTop + 36) " w170 h30", "Pick From Virtual Keyboard")
 btnVirtualKbSource.OnEvent("Click", OnVirtualKeyboardRemapSource)
-MainGui.Add("Text", "x210 y" (contentTop + 42) " w350", "Use this if the key sends no signal at all (fully dead, not just stuck).")
+MainGui.Add("Text", "x210 y" (contentTop + 42) " w350", "Use this if the source key sends no signal at all (fully dead, not just stuck).")
 
 btnCaptureTarget := MainGui.Add("Button", "x30 y" (contentTop + 72) " w170 h30", "Capture Key To Send Instead")
 btnCaptureTarget.OnEvent("Click", OnCaptureTargetKey)
-lblCaptureTarget := MainGui.Add("Text", "x210 y" (contentTop + 78) " w350", "Click here, then press any key/key combo - it can be on any keyboard.")
+lblCaptureTarget := MainGui.Add("Text", "x210 y" (contentTop + 78) " w350", "Often your faulty key's own action. Click, then press any key/combo.")
 
-btnAddRemapRule := MainGui.Add("Button", "x30 y" (contentTop + 108) " w170 h30", "Add As Remap Rule")
+btnVirtualKbTarget := MainGui.Add("Button", "x30 y" (contentTop + 108) " w170 h30", "Pick From Virtual Keyboard")
+btnVirtualKbTarget.OnEvent("Click", OnVirtualKeyboardRemapTarget)
+MainGui.Add("Text", "x210 y" (contentTop + 114) " w350", "Use this if your faulty key is fully dead and can't be captured directly.")
+
+btnAddRemapRule := MainGui.Add("Button", "x30 y" (contentTop + 144) " w170 h30", "Add As Remap Rule")
 btnAddRemapRule.OnEvent("Click", OnAddRemapRule)
 
-lvRemapRules := MainGui.Add("ListView", "x30 y" (contentTop + 144) " w530 h80", ["Device", "From", "To"])
+lvRemapRules := MainGui.Add("ListView", "x30 y" (contentTop + 180) " w530 h80", ["Device", "From", "To"])
 lvRemapRules.ModifyCol(1, 330)
 lvRemapRules.ModifyCol(2, 100)
 lvRemapRules.ModifyCol(3, 100)
-btnRemoveRemapRule := MainGui.Add("Button", "x30 y" (contentTop + 234) " w170 h30", "Remove Selected Rule")
+btnRemoveRemapRule := MainGui.Add("Button", "x30 y" (contentTop + 270) " w170 h30", "Remove Selected Rule")
 btnRemoveRemapRule.OnEvent("Click", OnRemoveRemapRule)
-btnStartRemap := MainGui.Add("Button", "x210 y" (contentTop + 234) " w170 h30", "Start Remapping")
+btnStartRemap := MainGui.Add("Button", "x210 y" (contentTop + 270) " w170 h30", "Start Remapping")
 btnStartRemap.OnEvent("Click", OnStartRemapping)
-btnStopRemap := MainGui.Add("Button", "x390 y" (contentTop + 234) " w170 h30", "Stop Remapping")
+btnStopRemap := MainGui.Add("Button", "x390 y" (contentTop + 270) " w170 h30", "Stop Remapping")
 btnStopRemap.OnEvent("Click", OnStopRemapping)
+
+; ---- Tab 3: Autostart & Lock Screen ----
+; Moved off the main window (rather than always visible below the tabs) so
+; the window fits on smaller/laptop screens - this content is only needed
+; during initial setup, not on every glance at the window.
+tab.UseTab(3)
+chkAutostart := MainGui.Add("Checkbox", "x30 y" contentTop, "Run automatically after I log in (background, tray icon)")
+chkAutostart.OnEvent("Click", OnAutostartToggle)
+
+svcBoxY := contentTop + 30
+MainGui.Add("GroupBox", "x30 y" svcBoxY " w500 h130", "Step 3 - Protect The Lock/Login Screen Too (Windows Service)")
+lblServiceInfo := MainGui.Add("Text", "x45 y" (svcBoxY + 20) " w470", "Protects the password/lock screen from boot, for BLOCK rules. Remap rules need a logged-in desktop, so they only apply after login (via the checkbox above).")
+lblServiceStatus := MainGui.Add("Text", "x45 y" (svcBoxY + 72) " w470", "Service status: checking...")
+btnInstallService := MainGui.Add("Button", "x45 y" (svcBoxY + 96) " w170", "Install As Service")
+btnInstallService.OnEvent("Click", OnInstallService)
+btnUninstallService := MainGui.Add("Button", "x225 y" (svcBoxY + 96) " w170", "Uninstall Service")
+btnUninstallService.OnEvent("Click", OnUninstallService)
 
 tab.UseTab()
 
-; Everything below is positioned using absolute Y derived from the tab's own
-; bottom edge (tabY + tabH), NOT relative "y+N" flow - relative flow after a
-; Tab3 control measures from wherever the last tab-page control happened to
+; Positioned using absolute Y derived from the tab's own bottom edge
+; (tabY + tabH), NOT relative "y+N" flow - relative flow after a Tab3
+; control measures from wherever the last tab-page control happened to
 ; land, which can be well inside the tab's visible rectangle and overlap it.
-belowTabY := tabY + tabH + 10
-
-chkAutostart := MainGui.Add("Checkbox", "x15 y" belowTabY, "Run automatically after I log in (background, tray icon)")
-chkAutostart.OnEvent("Click", OnAutostartToggle)
-
-svcBoxY := belowTabY + 20
-MainGui.Add("GroupBox", "x15 y" svcBoxY " w560 h90", "Step 3 - Protect The Lock/Login Screen Too (Windows Service)")
-lblServiceInfo := MainGui.Add("Text", "x30 y" (svcBoxY + 20) " w530", "Runs from boot, before you log in - protects the password screen for BLOCK rules. Remap rules need Windows' desktop, so they only apply after login (via 'Run automatically after I log in' above).")
-lblServiceStatus := MainGui.Add("Text", "x30 y" (svcBoxY + 42) " w530", "Service status: checking...")
-btnInstallService := MainGui.Add("Button", "x30 y" (svcBoxY + 58) " w170", "Install As Service")
-btnInstallService.OnEvent("Click", OnInstallService)
-btnUninstallService := MainGui.Add("Button", "x210 y" (svcBoxY + 58) " w170", "Uninstall Service")
-btnUninstallService.OnEvent("Click", OnUninstallService)
-
-statusY := svcBoxY + 98
+statusY := tabY + tabH + 10
 lblStatus := MainGui.Add("Text", "x15 y" statusY " w560", "Ready.")
 windowH := statusY + 25
 
@@ -456,6 +471,25 @@ VKRemapSourcePicked(code, keyName) {
     }
     CapturedCode := code
     lblCaptureSource.Text := "Captured source: " keyName " (via virtual keyboard, scan code 0x" Format("{:X}", code) ")."
+}
+
+; The target key is what gets *sent* - normally your faulty key's own
+; action (e.g. Backspace). If that key is fully dead, physical capture
+; can't read it as a target any more than it could as a source, so this
+; mirrors the source-side virtual keyboard picker.
+OnVirtualKeyboardRemapTarget(*) {
+    ShowVirtualKeyboard(VKRemapTargetPicked)
+}
+
+VKRemapTargetPicked(code, keyName) {
+    global CapturedTargetKeyName, lblCaptureTarget, CapturingTarget, DeviceCache, AHI
+    if (CapturingTarget) {
+        CapturingTarget := false
+        for row, dev in DeviceCache
+            try AHI.UnsubscribeKeyboard(dev.id)
+    }
+    CapturedTargetKeyName := keyName
+    lblCaptureTarget.Text := "Will send: " keyName " (via virtual keyboard)."
 }
 
 ; onPick(code, keyName) is called once, with the scan code (matching what

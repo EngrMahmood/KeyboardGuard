@@ -29,9 +29,9 @@ Run `KeyboardGuard-Setup.exe`. It installs to `C:\Program Files\KeyboardGuard`, 
 
 1. **Step 1** — confirm the driver is installed (the installer does this for you); reboot if you just installed it.
 2. **Step 2** — click "Refresh Keyboard List" and select the keyboard with the faulty key (an internal/laptop keyboard usually shows an `ACPI\...` handle).
-3. **Block a Key tab** — "Capture Key From Selected", press the faulty key, "Add As Blocked Rule", then "Start Blocking".
-   **Remap a Key tab** — "Capture Source Key" (the faulty key), "Capture Key To Send Instead" (any key/combo, from any keyboard), "Add As Remap Rule", then "Start Remapping".
-4. **Step 3** — "Install As Service" to keep the block/remap active from boot, including the lock/login screen.
+3. **Block a Key tab** — "Capture Key From Selected", press the faulty key, "Add As Blocked Rule", then "Start Blocking". If the key sends no signal at all (fully dead, not just stuck/repeating), use "Pick From Virtual Keyboard" instead of physical capture.
+4. **Remap a Key tab** — reuse a working key's position for your faulty key's job, or vice versa. "Source" is the key you'll physically press (usually a spare/working key); "Target" is what it should send instead (often your faulty key's own action, e.g. Backspace). Both sides have their own "Pick From Virtual Keyboard" option, for when either the source or the target key is fully dead and can't be captured by pressing it. Capture both, "Add As Remap Rule", then "Start Remapping".
+5. **Autostart & Lock Screen tab** — check "Run automatically after I log in" for autostart, and "Install As Service" to keep block rules active from boot, including the lock/login screen (remap rules need a logged-in desktop, so they only apply after login).
 
 ## Building from source
 
