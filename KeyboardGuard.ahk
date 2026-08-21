@@ -85,8 +85,10 @@ Remapping := false
 DeviceCache := Map()        ; index shown in list -> {id, vid, pid, handle}
 CapturedCode := 0
 Capturing := false
+CaptureDevId := 0          ; device currently subscribed for block-tab capture, if any
 CapturedTargetKeyName := ""
 CapturingTarget := false
+SourceCaptureDevId := 0    ; device currently subscribed for remap-tab source capture, if any
 LastAHIError := ""
 
 ; ---------------- Autostart / service silent mode ----------------
@@ -359,7 +361,7 @@ OnRefreshKeyboards(*) {
 
 ; ---------------- Key capture (Block tab) ----------------
 OnCaptureKey(*) {
-    global lvDevices, DeviceCache, lblCapture, AHI, CapturedCode, Capturing
+    global lvDevices, DeviceCache, lblCapture, AHI, CapturedCode, Capturing, CaptureDevId
     row := lvDevices.GetNext()
     if (!row) {
         MsgBox("Select a keyboard in the list first (click Refresh if the list is empty).", "No selection")
@@ -372,6 +374,7 @@ OnCaptureKey(*) {
     dev := DeviceCache[row]
     CapturedCode := 0
     Capturing := true
+    CaptureDevId := dev.id
     ; Move focus off the button - we only observe the key while capturing
     ; (block=false), so it also reaches Windows normally, and Space on a
     ; focused button re-clicks it, restarting this whole capture in a loop.
@@ -382,20 +385,22 @@ OnCaptureKey(*) {
 }
 
 CaptureCallback(id, code, state) {
-    global CapturedCode, Capturing, lblCapture, AHI
+    global CapturedCode, Capturing, lblCapture, AHI, CaptureDevId
     if (!Capturing || state != 1)
         return
     CapturedCode := code
     Capturing := false
+    CaptureDevId := 0
     keyName := GetKeyName(Format("SC{:x}", code))
     lblCapture.Text := "Captured: " (keyName != "" ? keyName : "?") " (scan code 0x" Format("{:X}", code) "). Click 'Add As Blocked Rule' to save it."
     AHI.UnsubscribeKeyboard(id)
 }
 
 StopCapture(id) {
-    global Capturing, AHI, lblCapture
+    global Capturing, AHI, lblCapture, CaptureDevId
     if (Capturing) {
         Capturing := false
+        CaptureDevId := 0
         try AHI.UnsubscribeKeyboard(id)
         lblCapture.Text := "No key detected within 8 seconds. Try again."
     }
@@ -417,7 +422,17 @@ OnVirtualKeyboardBlock(*) {
 }
 
 VKBlockPicked(code, keyName) {
-    global CapturedCode, lblCapture
+    global CapturedCode, lblCapture, Capturing, CaptureDevId, AHI
+    ; Cancel any in-flight physical capture first - otherwise its 8-second
+    ; timeout can fire moments later, see Capturing still true (it was never
+    ; cleared since the physical callback never ran), and stomp this result
+    ; back to "No key detected".
+    if (Capturing) {
+        Capturing := false
+        if (CaptureDevId)
+            try AHI.UnsubscribeKeyboard(CaptureDevId)
+        CaptureDevId := 0
+    }
     CapturedCode := code
     lblCapture.Text := "Captured: " keyName " (via virtual keyboard, scan code 0x" Format("{:X}", code) "). Click 'Add As Blocked Rule' to save it."
 }
@@ -432,7 +447,13 @@ OnVirtualKeyboardRemapSource(*) {
 }
 
 VKRemapSourcePicked(code, keyName) {
-    global CapturedCode, lblCaptureSource
+    global CapturedCode, lblCaptureSource, Capturing, SourceCaptureDevId, AHI
+    if (Capturing) {
+        Capturing := false
+        if (SourceCaptureDevId)
+            try AHI.UnsubscribeKeyboard(SourceCaptureDevId)
+        SourceCaptureDevId := 0
+    }
     CapturedCode := code
     lblCaptureSource.Text := "Captured source: " keyName " (via virtual keyboard, scan code 0x" Format("{:X}", code) ")."
 }
@@ -631,7 +652,7 @@ StopBlocking() {
 
 ; ---------------- Key capture (Remap tab) ----------------
 OnCaptureSourceKey(*) {
-    global lvDevices, DeviceCache, lblCaptureSource, AHI, CapturedCode, Capturing
+    global lvDevices, DeviceCache, lblCaptureSource, AHI, CapturedCode, Capturing, SourceCaptureDevId
     row := lvDevices.GetNext()
     if (!row) {
         MsgBox("Select a keyboard in the list first (click Refresh if the list is empty).", "No selection")
@@ -644,6 +665,7 @@ OnCaptureSourceKey(*) {
     dev := DeviceCache[row]
     CapturedCode := 0
     Capturing := true
+    SourceCaptureDevId := dev.id
     lvDevices.Focus()
     lblCaptureSource.Text := "Press the faulty key now (on that keyboard)..."
     AHI.SubscribeKeyboard(dev.id, false, SourceCaptureCallback.Bind(dev.id))
@@ -651,20 +673,22 @@ OnCaptureSourceKey(*) {
 }
 
 SourceCaptureCallback(id, code, state) {
-    global CapturedCode, Capturing, lblCaptureSource, AHI
+    global CapturedCode, Capturing, lblCaptureSource, AHI, SourceCaptureDevId
     if (!Capturing || state != 1)
         return
     CapturedCode := code
     Capturing := false
+    SourceCaptureDevId := 0
     keyName := GetKeyName(Format("SC{:x}", code))
     lblCaptureSource.Text := "Captured source: " (keyName != "" ? keyName : "?") " (scan code 0x" Format("{:X}", code) ")."
     AHI.UnsubscribeKeyboard(id)
 }
 
 StopSourceCapture(id) {
-    global Capturing, AHI, lblCaptureSource
+    global Capturing, AHI, lblCaptureSource, SourceCaptureDevId
     if (Capturing) {
         Capturing := false
+        SourceCaptureDevId := 0
         try AHI.UnsubscribeKeyboard(id)
         lblCaptureSource.Text := "No key detected within 8 seconds. Try again."
     }
